@@ -1,3 +1,4 @@
+// Iteration 2 inspired by fdumontmd's solution (flush underlying writer on flusn())
 use std::io::{Read, Result, Write};
 
 pub struct ReadStats<R> {
@@ -95,6 +96,6 @@ impl<W: Write> Write for WriteStats<W> {
     }
 
     fn flush(&mut self) -> Result<()> {
-        Ok(())
+        self.underlying.flush()
     }
 }
