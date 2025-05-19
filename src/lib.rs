@@ -2,22 +2,22 @@
 use std::io::{Read, Result, Write};
 
 pub struct ReadStats<R> {
-    underlying: R,
+    reader: R,
     bytes_read: usize,
-    reads: usize,
+    call_count: usize,
 }
 
 impl<R: Read> ReadStats<R> {
-    pub fn new(wrapped: R) -> ReadStats<R> {
-        ReadStats {
-            underlying: wrapped,
-            bytes_read: 0_usize,
-            reads: 0_usize,
+    pub fn new(wrapped: R) -> Self {
+        Self {
+            reader: wrapped,
+            bytes_read: 0,
+            call_count: 0,
         }
     }
 
     pub fn get_ref(&self) -> &R {
-        &self.underlying
+        &self.reader
     }
 
     pub fn bytes_through(&self) -> usize {
@@ -25,77 +25,60 @@ impl<R: Read> ReadStats<R> {
     }
 
     pub fn reads(&self) -> usize {
-        self.reads
+        self.call_count
     }
 }
 
 impl<R: Read> Read for ReadStats<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let bytes_read = self.underlying.read(buf)?;
-        self.bytes_read += bytes_read;
-        self.reads += 1;
-        Ok(bytes_read)
-    }
-
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
-        let mut internal: [u8; 8192] = [0; 8192];
-
-        let initial_buf_len = buf.len();
-        loop {
-            match self.read(&mut internal) {
-                Ok(bytes_read) => {
-                    if bytes_read == 0 {
-                        break;
-                    }
-                    buf.extend(&internal[0..bytes_read]);
-                }
-                Err(e) => match e.kind() {
-                    std::io::ErrorKind::Interrupted => continue,
-                    _ => return Err(e),
-                },
-            }
+        let res = self.reader.read(buf);
+        if let Ok(n) = res {
+            self.bytes_read += n;
         }
-        Ok(buf.len() - initial_buf_len)
+        self.call_count += 1;
+        res
     }
 }
 
 pub struct WriteStats<W> {
-    underlying: W,
-    bytes_through: usize,
-    writes: usize,
+    writer: W,
+    bytes_written: usize,
+    call_count: usize,
 }
 
 impl<W: Write> WriteStats<W> {
-    pub fn new(wrapped: W) -> WriteStats<W> {
-        WriteStats {
-            underlying: wrapped,
-            bytes_through: 0_usize,
-            writes: 0_usize,
+    pub fn new(wrapped: W) -> Self {
+        Self {
+            writer: wrapped,
+            bytes_written: 0,
+            call_count: 0,
         }
     }
 
     pub fn get_ref(&self) -> &W {
-        &self.underlying
+        &self.writer
     }
 
     pub fn bytes_through(&self) -> usize {
-        self.bytes_through
+        self.bytes_written
     }
 
     pub fn writes(&self) -> usize {
-        self.writes
+        self.call_count
     }
 }
 
 impl<W: Write> Write for WriteStats<W> {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        let bytes_written = self.underlying.write(buf)?;
-        self.bytes_through += bytes_written;
-        self.writes += 1;
-        Ok(bytes_written)
+        let res = self.writer.write(buf);
+        if let Ok(n) = res {
+            self.bytes_written += n;
+        }
+        self.call_count += 1;
+        res
     }
 
     fn flush(&mut self) -> Result<()> {
-        self.underlying.flush()
+        self.writer.flush()
     }
 }
